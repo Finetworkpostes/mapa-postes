@@ -1,346 +1,982 @@
 <!DOCTYPE html>
-<html lang="es">
-
+<html lang="es" class="h-full bg-slate-950">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Medidor de Distancia (Postes y Vivienda)</title>
-
-    <!-- 1. Estilos de Leaflet (para el mapa) -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-
-    <!-- 2. Estilos del Geocoder (para la barra de búsqueda) -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-
-    <!-- 3. TailwindCSS (para la UI) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Calculador de Postes FTTH - Trazado Satelital</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-    <!-- 4. Estilos personalizados -->
     <style>
-        html,
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+
         body {
-            height: 100vh;
-            /* Altura total de la ventana */
-            margin: 100;
-            padding: 100;
             font-family: 'Inter', sans-serif;
-            overflow: hidden;
-            /* Evita barras de scroll en el body */
+            touch-action: manipulation;
         }
 
-        #map-container {
-            flex-grow: 5;
-            /* Hace que este div ocupe todo el espacio sobrante */
-            position: relative;
-            /* Necesario para que el mapa sepa su tamaño */
-        }
-
-        #map {
-            height: 100%;
-            /* El mapa llena su contenedor */
-            width: 100%;
-            z-index: 0;
-        }
-
-        #info-panel {
-            flex-shrink: 0;
-            /* Evita que el panel se encoja */
-            overflow-y: auto;
-            /* Scroll si hay muchas mediciones */
-            box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
-            /* --- CAMBIO AQUÍ --- */
-            height: 300px;
-            /* Altura reducida para dar más espacio al mapa */
-        }
-
-        /* Estilos para los iconos SVG personalizados */
+        /* Leaflet custom map markers */
         .custom-div-icon {
-            display: flex;
-            justify-content: center;
+            background: none;
+            border: none;
+        }
+        
+        .marker-badge {
+            display: inline-flex;
             align-items: center;
-            width: 32px;
-            height: 32px;
+            justify-content: center;
+            padding: 5px 10px;
+            border-radius: 9999px;
+            font-weight: 800;
+            font-size: 12px;
+            color: white;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+            white-space: nowrap;
+            border: 2px solid white;
+            transition: transform 0.15s ease;
+            user-select: none;
+            cursor: grab;
         }
 
-        .custom-div-icon svg {
-            width: 100%;
-            height: 100%;
+        .marker-badge:active {
+            transform: scale(0.95);
+            cursor: grabbing;
         }
 
-        /* Estilos para botones deshabilitados */
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .marker-badge.cto { background: linear-gradient(135deg, #8b5cf6, #5b21b6); }
+        .marker-badge.pole { background: linear-gradient(135deg, #f59e0b, #92400e); }
+        .marker-badge.house { background: linear-gradient(135deg, #10b981, #065f46); }
+
+        .pin-pointer {
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid white;
+            margin: -2px auto 0 auto;
         }
 
-        /* Ocultar UI al imprimir */
-        @media print {
-            body {
-                display: block;
-                height: auto;
-                overflow: visible;
-            }
+        /* Pulsing ring for GPS location marker */
+        .user-location-marker {
+            width: 22px;
+            height: 22px;
+            background-color: #06b6d4;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 16px rgba(6, 182, 212, 1);
+            animation: pulse-ring 1.8s infinite;
+        }
 
-            #map-container {
-                height: 60vh !important;
-            }
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.8); }
+            70% { box-shadow: 0 0 0 16px rgba(6, 182, 212, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
+        }
 
-            #map {
-                height: 60% !important;
-            }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
 
-            #print-button,
-            #undo-button,
-            #reset-button,
-            .leaflet-control-container {
-                display: none !important;
-            }
+        /* Cable line visual glow shadow */
+        .leaflet-interactive {
+            filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.8));
+        }
 
-            #info-panel {
-                height: auto !important;
-                overflow: visible !important;
-                box-shadow: none !important;
-                border: 1px solid #ccc;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
+        /* Bottom Sheet Transition for Mobile */
+        .bottom-sheet {
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
 
-            #total-distance {
-                background-color: #f3f4f6 !important;
+        .bottom-sheet.collapsed {
+            transform: translateY(calc(100% - 76px));
+        }
+
+        @media (min-width: 1024px) {
+            .bottom-sheet.collapsed {
+                transform: none !important;
             }
         }
     </style>
 </head>
+<body class="h-full bg-slate-950 text-slate-100 flex flex-col overflow-hidden antialiased select-none">
 
-<body class="flex flex-col h-screen">
-
-    <!-- Contenedor del mapa (crece para llenar el espacio) -->
-    <div id="map-container">
-        <div id="map"></div>
-    </div>
-
-    <!-- Panel de Información (Debajo del mapa) -->
-    <!-- --- CAMBIO AQUÍ (p-2) --- -->
-    <div id="info-panel" class="w-full p-2 bg-white z-10 border-t-2 border-gray-200">
-
-        <!-- Contenedor para las dos columnas (se apila en móvil) -->
-        <!-- --- CAMBIO AQUÍ (gap-2) --- -->
-        <div class="flex flex-col md:flex-row gap-2">
-
-            <!-- Columna de lista de distancias -->
-            <div id="distances-list" class="flex-1 text-gray-700">
-                <!-- --- CAMBIO AQUÍ (mb-1) --- -->
-                <h2 class="text-lg font-bold mb-1 text-gray-800">Mediciones</h2>
-                <p class="italic text-sm">Haz clic en el mapa para añadir el primer "POSTE", siempre se empezara desde la CTO hasta la VIVIENDA.</p>
+    <!-- APP HEADER -->
+    <header class="bg-slate-900/95 border-b border-slate-800 shrink-0 z-30 px-3 sm:px-6 h-14 flex items-center justify-between shadow-lg">
+        <div class="flex items-center space-x-2.5">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-amber-500 flex items-center justify-center shadow-md shadow-cyan-500/20 text-white font-bold text-base">
+                🛰️
             </div>
+            <div>
+                <h1 class="font-extrabold text-sm sm:text-base text-white tracking-tight leading-tight flex items-center gap-1.5">
+                    Postes FTTH <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold uppercase tracking-wider">Satelital</span>
+                </h1>
+                <p class="text-[10px] text-slate-400 font-medium hidden sm:block">Detección de calles, trazado y recuento de apoyos</p>
+            </div>
+        </div>
 
-            <!-- Columna de distancia total y botones de acción -->
-            <div class="flex-shrink-0 w-full md:w-1/3">
+        <!-- Action Buttons -->
+        <div class="flex items-center space-x-1.5">
+            <button onclick="undoLastPoint()" class="min-h-[38px] px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 border border-slate-700 transition flex items-center gap-1.5" title="Deshacer último punto">
+                <i class="fa-solid fa-rotate-left text-cyan-400"></i>
+                <span class="text-[11px] sm:text-xs">Deshacer</span>
+            </button>
+            <button onclick="clearAllPoints()" class="min-h-[38px] px-3 py-1.5 text-xs font-semibold rounded-xl bg-rose-500/15 hover:bg-rose-500/25 active:bg-rose-500/40 text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5" title="Borrar todo">
+                <i class="fa-solid fa-trash-can text-rose-400"></i>
+                <span class="text-[11px] sm:text-xs">Borrar</span>
+            </button>
+        </div>
+    </header>
 
-                <!-- Distancia Total -->
-                <!-- --- CAMBIO AQUÍ (p-1.5) --- -->
-                <div id="total-distance" class="text-md font-semibold text-gray-900 bg-gray-100 p-1.5 rounded-lg text-center md:text-right">
-                    Distancia Total: 0.00 metros
+    <!-- MAIN VIEWPORT CONTAINER -->
+    <main class="flex-1 relative overflow-hidden flex flex-col lg:flex-row">
+
+        <!-- MAP VIEWPORT -->
+        <div id="map-wrapper" class="flex-1 relative h-full w-full bg-slate-950">
+            <!-- Leaflet Map Object -->
+            <div id="map" class="w-full h-full z-0"></div>
+
+            <!-- FLOATING TOP CONTROLS (SEARCH & GPS) -->
+            <div class="absolute top-3 left-3 right-3 sm:right-auto sm:w-96 z-10 flex flex-col gap-2 pointer-events-none">
+                
+                <!-- Search Box -->
+                <div class="pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden p-1 flex items-center">
+                    <div class="pl-2.5 text-cyan-400">
+                        <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                    </div>
+                    <input type="text" id="address-input" onkeyup="handleSearchKey(event)" placeholder="Buscar calle, número o municipio..." class="w-full bg-transparent px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-400 focus:outline-none">
+                    <button onclick="searchAddress()" class="min-h-[36px] px-3.5 py-1.5 text-xs font-bold bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white rounded-xl transition shrink-0">
+                        Buscar
+                    </button>
                 </div>
 
-                <!-- Botones de Acción (Vertical stack) -->
-                <!-- --- CAMBIO AQUÍ (mt-1.5, space-y-1.5) --- -->
-                <div class="mt-1.5 space-y-1.5">
-                    <!-- Botón Imprimir -->
-                    <!-- --- CAMBIO AQUÍ (py-1.5) --- -->
-                    <button id="print-button" class="w-full text-sm py-1.5 px-3 rounded-lg shadow-md flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
-                            <polyline points="6 9 6 2 18 2 18 9"></polyline>
-                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-                            <rect x="6" y="14" width="12" height="8"></rect>
-                        </svg>
-                        Imprimir Mapa
+                <!-- Autocomplete Dropdown List -->
+                <div id="search-results" class="pointer-events-auto hidden max-h-56 overflow-y-auto border border-slate-700/80 rounded-2xl divide-y divide-slate-800 bg-slate-900/95 backdrop-blur-md text-xs shadow-2xl"></div>
+
+                <!-- GPS & Satellite Status Badge -->
+                <div class="pointer-events-auto flex items-center justify-between gap-2">
+                    <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl px-3 py-1.5 text-xs font-semibold text-slate-300 flex items-center gap-2 shadow-lg">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span class="text-[11px]">Vista Satélite + Vías</span>
+                    </div>
+
+                    <!-- GPS Location Button -->
+                    <button onclick="locateUser()" class="px-3.5 py-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 hover:bg-slate-800 active:bg-slate-700 text-cyan-400 font-bold rounded-2xl shadow-lg transition flex items-center gap-1.5 text-xs">
+                        <i class="fa-solid fa-location-crosshairs text-sm"></i>
+                        <span>GPS</span>
                     </button>
-                    <!-- Botón Deshacer -->
-                    <!-- --- CAMBIO AQUÍ (py-1.5) --- -->
-                    <button id="undo-button" class="w-full text-sm py-1.5 px-3 rounded-lg shadow-md flex items-center justify-center bg-yellow-500 text-white hover:bg-yellow-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
-                            <path d="M3 3v6h6"></path>
-                            <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
-                        </svg>
-                        Eliminar Último
-                    </button>
-                    <!-- Botón Reiniciar -->
-                    <!-- --- CAMBIO AQUÍ (py-1.5) --- -->
-                    <button id="reset-button" class="w-full text-sm py-1.5 px-3 rounded-lg shadow-md flex items-center justify-center bg-red-600 text-white hover:bg-red-700">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            <line x1="10" y1="11" x2="10" y2="17"></line>
-                            <line x1="14" y1="11" x2="14" y2="17"></line>
-                        </svg>
-                        Reiniciar Todo
-                    </button>
+                </div>
+            </div>
+
+            <!-- STEP INSTRUCTION BANNER (Bottom Floating on Map) -->
+            <div id="map-banner" class="absolute bottom-20 lg:bottom-4 left-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:w-auto z-10 pointer-events-none">
+                <div class="bg-slate-900/95 backdrop-blur-md border border-slate-700 text-slate-200 text-xs px-4 py-2.5 rounded-full shadow-2xl flex items-center justify-center gap-2.5 text-center">
+                    <span id="banner-step-icon" class="text-base shrink-0">📦</span>
+                    <span id="banner-text" class="font-medium text-[11px] sm:text-xs">Toca en el mapa para ubicar la <b>CTO</b> (Caja de Conexiones).</span>
                 </div>
             </div>
         </div>
+
+        <!-- MOBILE BOTTOM SHEET / DESKTOP SIDEBAR PANEL -->
+        <aside id="sidebar-panel" class="bottom-sheet collapsed fixed lg:relative bottom-0 left-0 right-0 z-20 w-full lg:w-[390px] bg-slate-900/95 border-t lg:border-t-0 lg:border-l border-slate-800 rounded-t-3xl lg:rounded-none shadow-2xl lg:shadow-none flex flex-col max-h-[85vh] lg:max-h-full">
+            
+            <!-- Mobile Sheet Drag Handle & Toggle Header -->
+            <button onclick="toggleBottomSheet()" class="w-full py-2.5 px-4 flex flex-col items-center justify-center shrink-0 lg:hidden border-b border-slate-800/80 active:bg-slate-800/50">
+                <div class="w-12 h-1.5 bg-slate-700 rounded-full mb-1"></div>
+                <div class="w-full flex items-center justify-between text-xs text-slate-400 font-bold">
+                    <span class="flex items-center gap-1.5 text-slate-300">
+                        <i class="fa-solid fa-chart-pie text-cyan-400"></i> Métricas e Informe Técnico
+                    </span>
+                    <span id="sheet-toggle-icon" class="text-cyan-400">
+                        <i class="fa-solid fa-chevron-up text-sm"></i>
+                    </span>
+                </div>
+            </button>
+
+            <!-- Panel Scrollable Body -->
+            <div class="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+
+                <!-- 1. METRICS CARDS -->
+                <div class="grid grid-cols-3 gap-2">
+                    <!-- Distancia Total -->
+                    <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-2xl text-center flex flex-col justify-center">
+                        <div class="text-[9px] font-extrabold tracking-wider text-slate-400 uppercase">Distancia Total</div>
+                        <div id="stat-distance" class="text-base sm:text-lg font-black text-cyan-400 mt-0.5">0 m</div>
+                        <div class="text-[9px] text-slate-500">CTO ➔ Casa</div>
+                    </div>
+
+                    <!-- Nº Postes -->
+                    <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-2xl text-center flex flex-col justify-center">
+                        <div class="text-[9px] font-extrabold tracking-wider text-slate-400 uppercase">Nº Postes</div>
+                        <div id="stat-poles" class="text-base sm:text-lg font-black text-amber-400 mt-0.5">0</div>
+                        <div class="text-[9px] text-slate-500">Apoyos red</div>
+                    </div>
+
+                    <!-- Cable Est. -->
+                    <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-2xl text-center flex flex-col justify-center">
+                        <div class="text-[9px] font-extrabold tracking-wider text-slate-400 uppercase">Cable (+Margen)</div>
+                        <div id="stat-cable" class="text-base sm:text-lg font-black text-emerald-400 mt-0.5">0 m</div>
+                        <div class="text-[9px] text-slate-500">Estimado</div>
+                    </div>
+                </div>
+
+                <!-- 2. CABLE SLACK CONFIG -->
+                <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 flex items-center justify-between">
+                    <label for="form-slack" class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-ruler-combined text-cyan-400"></i>
+                        Margen de Cable:
+                    </label>
+                    <select id="form-slack" onchange="recalculateTotals()" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-bold focus:border-cyan-500 focus:outline-none">
+                        <option value="0">0% (Exacto)</option>
+                        <option value="10" selected>10% (Estándar)</option>
+                        <option value="15">15% (Medio)</option>
+                        <option value="20">20% (Alto)</option>
+                    </select>
+                </div>
+
+                <!-- 3. ROUTE SEGMENTS & STREET NAMES LIST -->
+                <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5 flex flex-col min-h-[200px]">
+                    <div class="flex items-center justify-between mb-2.5">
+                        <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-map-pin text-cyan-400"></i>
+                            Calles y Puntos Trazados
+                        </h2>
+                        <span id="badge-route-status" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-bold">Sin puntos</span>
+                    </div>
+
+                    <div id="segments-list" class="space-y-2 max-h-52 lg:max-h-64 overflow-y-auto pr-1">
+                        <div class="text-center py-8 text-slate-500 text-xs italic">
+                            Toca en el mapa para situar la CTO. El sistema detectará automáticamente el nombre de la calle.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. EXPORT ACTION BUTTONS -->
+                <div class="grid grid-cols-2 gap-2.5 pt-1">
+                    <button onclick="exportPNG()" class="min-h-[44px] px-3 py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-2xl font-bold text-xs text-white transition flex items-center justify-center gap-2 shadow-lg">
+                        <i class="fa-solid fa-camera text-slate-300 text-sm"></i>
+                        <span>Captura PNG</span>
+                    </button>
+
+                    <button onclick="generatePDF()" class="min-h-[44px] px-3 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:from-cyan-700 active:to-blue-700 text-white rounded-2xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/25">
+                        <i class="fa-solid fa-file-pdf text-rose-300 text-sm"></i>
+                        <span>Guardar PDF</span>
+                    </button>
+                </div>
+
+            </div>
+        </aside>
+
+    </main>
+
+    <!-- HIDDEN CONTAINER FOR PDF REPORT GENERATION -->
+    <div id="pdf-template-container" class="fixed -left-[9999px] top-0 w-[800px] bg-white text-slate-900 p-8 font-sans">
+        <div class="border-b-2 border-cyan-600 pb-4 mb-6 flex justify-between items-start">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="text-2xl">📡</span>
+                    <h1 class="text-2xl font-black text-slate-900 uppercase tracking-tight">Informe Técnico de Postes FTTH</h1>
+                </div>
+                <p class="text-xs text-slate-500 font-medium mt-1">Cálculo de Apoyos, Ubicación Satelital y Calles Registradas</p>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-slate-400 font-mono" id="pdf-doc-date">FECHA: --/--/----</div>
+                <div class="text-xs font-bold text-cyan-700 mt-1">REPORTE DE CAMPO CABLE AÉREO</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-cyan-50 border border-cyan-100 p-3.5 rounded-xl text-center">
+                <div class="text-[10px] font-bold uppercase text-cyan-600">Distancia Total Red</div>
+                <div id="pdf-val-dist" class="text-2xl font-black text-cyan-900 mt-0.5">0 m</div>
+            </div>
+            <div class="bg-amber-50 border border-amber-100 p-3.5 rounded-xl text-center">
+                <div class="text-[10px] font-bold uppercase text-amber-600">Postes Utilizados</div>
+                <div id="pdf-val-poles" class="text-2xl font-black text-amber-900 mt-0.5">0</div>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-100 p-3.5 rounded-xl text-center">
+                <div class="text-[10px] font-bold uppercase text-emerald-600">Estimación Cable (+Margen)</div>
+                <div id="pdf-val-cable" class="text-2xl font-black text-emerald-900 mt-0.5">0 m</div>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-2">
+                <span>🛰️</span> Plano Satelital del Trazado Aéreo
+            </h3>
+            <div id="pdf-map-capture-target" class="w-full h-[330px] rounded-xl border border-slate-300 overflow-hidden bg-slate-900 flex items-center justify-center">
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-2">
+                <span>📍</span> Desglose de Puntos, Nombres de Calles y Coordenadas GPS
+            </h3>
+            <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                    <tr class="bg-slate-900 text-white text-[11px] uppercase">
+                        <th class="p-2.5 rounded-tl-lg">Elemento</th>
+                        <th class="p-2.5">Calle / Ubicación Detectada</th>
+                        <th class="p-2.5">Coordenadas GPS</th>
+                        <th class="p-2.5 rounded-tr-lg text-right">Tramo Parcial</th>
+                    </tr>
+                </thead>
+                <tbody id="pdf-table-body" class="divide-y divide-slate-200 border-b border-slate-200">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="border-t border-slate-200 pt-4 flex justify-between items-center text-[10px] text-slate-400">
+            <div>Generado con Calculador de Postes FTTH (Modo Satelital)</div>
+            <div>Página 1 de 1</div>
+        </div>
     </div>
 
+    <!-- UI TOAST NOTIFICATIONS -->
+    <div id="toast" class="fixed bottom-20 lg:bottom-6 right-4 left-4 sm:left-auto sm:right-6 z-50 bg-slate-900 text-slate-100 border border-slate-700 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 transition-all duration-300 opacity-0 translate-y-4 pointer-events-none">
+        <i id="toast-icon" class="fa-solid fa-circle-info text-cyan-400 text-base shrink-0"></i>
+        <span id="toast-message" class="text-xs font-medium">Notificación</span>
+    </div>
 
-    <!-- 5. Script de Leaflet (para el mapa) -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
-    <!-- 6. Script del Geocoder (para la barra de búsqueda) -->
-    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-
-    <!-- 7. Lógica principal de la aplicación (Sin cambios en el JS) -->
+    <!-- APPLICATION LOGIC JS -->
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        // --- GLOBAL STATE ---
+        let map = null;
+        let points = []; // Array of { id, lat, lng, type, label, emoji, streetName, marker }
+        let polyline = null;
+        let userLocationMarker = null;
 
-            // --- 1. DEFINICIÓN DE ICONOS ---
-            const posteIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="color: purple; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));"><path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041A1.5 1.5 0 0014.02 21.5V17.375a2.25 2.25 0 00-2.25-2.25h-1.5a2.25 2.25 0 00-2.25 2.25V21.5c0 .414.168.79.44 1.069l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.04A1.5 1.5 0 0010.02 21.5V17.375a.75.75 0 01.75-.75h1.5a.75.75 0 01.75.75V21.5a1.5 1.5 0 00.52 1.069zM12 1.5a6.75 6.75 0 00-6.75 6.75c0 4.5 4.125 10.336 6.362 12.507a.75.75 0 001.076 0C14.624 18.586 18.75 12.75 18.75 8.25A6.75 6.75 0 0012 1.5zm0 9a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clip-rule="evenodd" /></svg>`;
-            const viviendaIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="color: #4A90E2; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));"><path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0L2.47 11.47a.75.75 0 101.06 1.06l8.69-8.69z" /><path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a2.29 2.29 0 00.091-.086L12 5.43z" /></svg>`;
+        window.onload = function() {
+            initMap();
+            updateUI();
+        };
 
-            const posteIcon = L.divIcon({
-                html: posteIconSVG,
-                className: 'custom-div-icon',
-                iconSize: [32, 32],
-                iconAnchor: [16, 32],
-                popupAnchor: [0, -32]
-            });
-            const viviendaIcon = L.divIcon({
-                html: viviendaIconSVG,
-                className: 'custom-div-icon',
-                iconSize: [32, 32],
-                iconAnchor: [16, 32],
-                popupAnchor: [0, -32]
-            });
+        function initMap() {
+            // Default Center (Spain)
+            const defaultLat = 40.416775;
+            const defaultLng = -3.703790;
 
-            // --- 2. INICIALIZACIÓN DEL MAPA ---
-            const map = L.map('map').setView([40.416775, -3.703790], 6);
-            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView([defaultLat, defaultLng], 17);
+
+            // Zoom controls top right
+            L.control.zoom({ position: 'topright' }).addTo(map);
+
+            // 1. ESRI WORLD IMAGERY (Pure Satellite Imagery - No API key required)
+            const satelliteImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                crossOrigin: true
             }).addTo(map);
 
-            // --- 3. BÚSQUEDA DE DIRECCIONES (GEOCODER) ---
-            const geocoder = L.Control.geocoder({
-                defaultMarkGeocode: false,
-                placeholder: 'Buscar dirección en España...',
-                geocoder: L.Control.Geocoder.nominatim({
-                    geocodingQueryParams: {
-                        'countrycodes': 'es',
-                        'viewbox': '-9.5,36.0,3.5,43.8'
-                    }
-                })
-            }).on('markgeocode', function(e) {
-                map.fitBounds(e.geocode.bbox);
+            // 2. ESRI WORLD BOUNDARIES AND PLACES (Overlay of streets and labels over satellite)
+            const streetLabels = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                crossOrigin: true
             }).addTo(map);
 
-            // --- 4. LÓGICA DE PUNTOS Y DISTANCIAS ---
-            let points = [];
-            let polyline = L.polyline([], {
-                color: 'purple',
-                weight: 3
+            // Fiber Polyline (Cyan Glow)
+            polyline = L.polyline([], {
+                color: '#06b6d4',      // Cyan
+                weight: 4,
+                dashArray: '8, 8',      // Cable texture
+                lineCap: 'round',
+                lineJoin: 'round',
+                opacity: 0.95
             }).addTo(map);
-            let markerLayer = L.layerGroup().addTo(map);
 
-            // Elementos de la UI
-            const distancesListPanel = document.getElementById('distances-list');
-            const totalDistancePanel = document.getElementById('total-distance');
-            const printButton = document.getElementById('print-button');
-            const undoButton = document.getElementById('undo-button');
-            const resetButton = document.getElementById('reset-button');
-
-            // --- 5. EVENT LISTENERS ---
+            // Map Click Event
             map.on('click', function(e) {
-                const newPoint = {
-                    latLng: e.latlng,
-                    marker: null,
-                    type: 'POSTE'
-                };
-                points.push(newPoint);
-                updateMapAndDistances();
-            });
-                
-                printButton.addEventListener('click', function() {
-                // Al imprimir, ajustamos la vista para que todos los puntos quepan.
-                if (points.length > 0) {
-                    const latLngs = points.map(p => p.latLng);
-                    map.fitBounds(L.latLngBounds(latLngs), { padding: [20, 20] });
-                }
-                
-                // Forzar un re-dibujado del mapa antes de imprimir (redundante pero seguro)
-                map.invalidateSize(); 
-                setTimeout(() => window.print(), 100); 
+                addPoint(e.latlng.lat, e.latlng.lng);
             });
 
+            // GPS locate silently on load
+            locateUser(false);
+        }
 
-
-            undoButton.addEventListener('click', function() {
-                points.pop();
-                updateMapAndDistances();
-            });
-
-            resetButton.addEventListener('click', function() {
-                points = [];
-                updateMapAndDistances();
-            });
-
-            // --- 6. FUNCIÓN PRINCIPAL DE ACTUALIZACIÓN ---
-            function updateMapAndDistances() {
-
-                markerLayer.clearLayers();
-                distancesListPanel.innerHTML = '';
-
-                if (points.length === 0) {
-                    distancesListPanel.innerHTML = '<p class="italic text-sm">Haz clic en el mapa para añadir el primer "POSTE".</p>';
-                    totalDistancePanel.textContent = 'Distancia Total: 0.00 metros';
-                    polyline.setLatLngs([]);
-
-                    printButton.disabled = true;
-                    undoButton.disabled = true;
-                    resetButton.disabled = true;
-                    return;
-                }
-
-                printButton.disabled = false;
-                undoButton.disabled = false;
-                resetButton.disabled = false;
-
-                let totalDistance = 0;
-                let polylineLatLngs = [];
-                let distancesHTML = '<ul class="space-y-1 list-disc list-inside text-sm">';
-
-                points.forEach((point, index) => {
-
-                    const isLastPoint = (index === points.length - 1);
-                    point.type = isLastPoint ? 'VIVIENDA' : 'POSTE';
-                    const icon = isLastPoint ? viviendaIcon : posteIcon;
-
-                    point.marker = L.marker(point.latLng, {
-                            icon: icon
-                        })
-                        .bindPopup(`<b>${point.type} ${index + 1}</b><br>Lat: ${point.latLng.lat.toFixed(5)}<br>Lng: ${point.latLng.lng.toFixed(5)}`);
-
-                    markerLayer.addLayer(point.marker);
-
-                    polylineLatLngs.push(point.latLng);
-
-                    if (index > 0) {
-                        const prevPoint = points[index - 1];
-                        const distance = point.latLng.distanceTo(prevPoint.latLng); // en metros
-                        totalDistance += distance;
-
-                        distancesHTML += `<li>${prevPoint.type} ${index} a ${point.type} ${index + 1}: <span class="font-semibold">${distance.toFixed(2)} m</span></li>`;
-                    }
-                });
-
-                distancesHTML += '</ul>';
-
-                distancesListPanel.innerHTML = distancesHTML;
-                totalDistancePanel.textContent = `Distancia Total: ${totalDistance.toFixed(2)} metros`;
-                polyline.setLatLngs(polylineLatLngs);
+        // --- GEOLOCATION ---
+        function locateUser(showAlert = true) {
+            if (!navigator.geolocation) {
+                if (showAlert) showToast('Geolocalización no soportada en este navegador', 'error');
+                return;
             }
 
-            // --- 7. LLAMADA INICIAL ---
-            updateMapAndDistances();
-        });
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+
+                    map.flyTo([lat, lng], 18, { animate: true });
+
+                    if (userLocationMarker) {
+                        map.removeLayer(userLocationMarker);
+                    }
+
+                    const locationIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div class="user-location-marker"></div>`,
+                        iconSize: [22, 22],
+                        iconAnchor: [11, 11]
+                    });
+
+                    userLocationMarker = L.marker([lat, lng], { icon: locationIcon }).addTo(map);
+
+                    if (showAlert) showToast('Ubicación GPS centrada', 'success');
+                },
+                (err) => {
+                    if (showAlert) showToast('No se pudo obtener la ubicación GPS', 'error');
+                },
+                { enableHighAccuracy: true, timeout: 8000 }
+            );
+        }
+
+        // --- ADD & MANAGE POINTS ---
+        function addPoint(lat, lng) {
+            const id = Date.now() + Math.random().toString(36).substr(2, 4);
+
+            const newPoint = {
+                id: id,
+                lat: lat,
+                lng: lng,
+                type: 'cto',
+                label: '',
+                emoji: '',
+                streetName: 'Detectando calle...',
+                marker: null
+            };
+
+            points.push(newPoint);
+            fetchReverseGeocode(newPoint);
+            refreshMapAndData();
+            showToast('Punto marcado en mapa', 'info');
+        }
+
+        // --- REVERSE GEOCODING (NOMINATIM STREET DETECTION) ---
+        function fetchReverseGeocode(point) {
+            point.streetName = 'Buscando calle...';
+            updateUI();
+
+            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${point.lat}&lon=${point.lng}`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.address) {
+                        const addr = data.address;
+                        const road = addr.road || addr.pedestrian || addr.footway || addr.suburb || addr.neighbourhood || addr.city_district || addr.town || addr.village || 'Sin nombre de calle';
+                        const houseNum = addr.house_number ? `, ${addr.house_number}` : '';
+                        point.streetName = `${road}${houseNum}`;
+                    } else if (data && data.display_name) {
+                        point.streetName = data.display_name.split(',')[0];
+                    } else {
+                        point.streetName = 'Calle no identificada';
+                    }
+                    refreshMapAndData();
+                })
+                .catch(() => {
+                    point.streetName = 'Coordenadas GPS';
+                    refreshMapAndData();
+                });
+        }
+
+        function undoLastPoint() {
+            if (points.length === 0) {
+                showToast('No hay puntos para deshacer', 'error');
+                return;
+            }
+            const removed = points.pop();
+            if (removed.marker) {
+                map.removeLayer(removed.marker);
+            }
+            refreshMapAndData();
+            showToast('Último punto eliminado', 'info');
+        }
+
+        function clearAllPoints() {
+            if (points.length === 0) return;
+
+            points.forEach(p => {
+                if (p.marker) map.removeLayer(p.marker);
+            });
+            points = [];
+            refreshMapAndData();
+            showToast('Se han borrado todos los puntos', 'info');
+        }
+
+        function removePointById(id) {
+            const index = points.findIndex(p => p.id === id);
+            if (index !== -1) {
+                if (points[index].marker) map.removeLayer(points[index].marker);
+                points.splice(index, 1);
+                refreshMapAndData();
+                showToast('Punto eliminado', 'info');
+            }
+        }
+
+        // --- RECALCULATE & REDRAW ---
+        function refreshMapAndData() {
+            let poleCounter = 1;
+
+            points.forEach((p, index) => {
+                if (index === 0) {
+                    p.type = 'cto';
+                    p.label = 'CTO';
+                    p.emoji = '📦';
+                } else if (index === points.length - 1 && points.length >= 2) {
+                    p.type = 'house';
+                    p.label = 'Casa / Cliente';
+                    p.emoji = '🏠';
+                } else {
+                    p.type = 'pole';
+                    p.label = `Poste ${poleCounter}`;
+                    p.emoji = '🪵';
+                    poleCounter++;
+                }
+            });
+
+            // Update Leaflet Markers
+            points.forEach((p) => {
+                const badgeClass = p.type;
+                const markerHtml = `
+                    <div class="marker-badge ${badgeClass}">
+                        <span class="mr-1">${p.emoji}</span> ${p.label}
+                    </div>
+                    <div class="pin-pointer"></div>
+                `;
+
+                const divIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: markerHtml,
+                    iconSize: [120, 36],
+                    iconAnchor: [60, 36]
+                });
+
+                if (!p.marker) {
+                    p.marker = L.marker([p.lat, p.lng], {
+                        icon: divIcon,
+                        draggable: true
+                    }).addTo(map);
+
+                    // Add tooltip with street name
+                    p.marker.bindTooltip(() => `<b>${p.label}</b><br>${p.streetName}`, {
+                        direction: 'top',
+                        offset: [0, -32],
+                        opacity: 0.9
+                    });
+
+                    p.marker.on('dragend', function(e) {
+                        const newPos = e.target.getLatLng();
+                        p.lat = newPos.lat;
+                        p.lng = newPos.lng;
+                        fetchReverseGeocode(p);
+                        refreshMapAndData();
+                    });
+                } else {
+                    p.marker.setLatLng([p.lat, p.lng]);
+                    p.marker.setIcon(divIcon);
+                    if (p.marker.getTooltip()) {
+                        p.marker.setTooltipContent(`<b>${p.label}</b><br>${p.streetName}`);
+                    }
+                }
+            });
+
+            // Update Line
+            const latLngs = points.map(p => [p.lat, p.lng]);
+            polyline.setLatLngs(latLngs);
+
+            updateUI();
+        }
+
+        // --- METRICS UPDATE ---
+        function updateUI() {
+            let totalDistanceMeters = 0;
+            const segments = [];
+            let polesCount = 0;
+
+            for (let i = 0; i < points.length; i++) {
+                if (i > 0) {
+                    const prev = points[i - 1];
+                    const curr = points[i];
+
+                    const p1 = L.latLng(prev.lat, prev.lng);
+                    const p2 = L.latLng(curr.lat, curr.lng);
+
+                    const segDist = p1.distanceTo(p2);
+                    totalDistanceMeters += segDist;
+
+                    segments.push({
+                        from: prev.label,
+                        to: curr.label,
+                        distance: segDist
+                    });
+                }
+
+                if (points[i].type === 'pole') {
+                    polesCount++;
+                }
+            }
+
+            const slackPercent = parseFloat(document.getElementById('form-slack').value) || 0;
+            const cableWithSlack = totalDistanceMeters * (1 + slackPercent / 100);
+
+            document.getElementById('stat-distance').innerText = formatDistance(totalDistanceMeters);
+            document.getElementById('stat-poles').innerText = polesCount;
+            document.getElementById('stat-cable').innerText = formatDistance(cableWithSlack);
+
+            // Banner Helper text
+            const bannerIcon = document.getElementById('banner-step-icon');
+            const bannerText = document.getElementById('banner-text');
+
+            if (points.length === 0) {
+                bannerIcon.innerText = '📦';
+                bannerText.innerHTML = 'Toca en el mapa para ubicar la <b>CTO</b> (Caja de Conexiones).';
+            } else if (points.length === 1) {
+                bannerIcon.innerText = '🪵';
+                bannerText.innerHTML = 'Toca para añadir <b>Postes de Telefonía</b> o la <b>Casa</b>.';
+            } else {
+                bannerIcon.innerText = '🏠';
+                bannerText.innerHTML = `Ruta: CTO ➔ <b>${polesCount} Poste(s)</b> ➔ Casa del Cliente.`;
+            }
+
+            const badgeStatus = document.getElementById('badge-route-status');
+            if (points.length === 0) {
+                badgeStatus.className = 'text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-bold';
+                badgeStatus.innerText = 'Sin puntos';
+            } else if (points.length === 1) {
+                badgeStatus.className = 'text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold';
+                badgeStatus.innerText = 'Sólo CTO';
+            } else {
+                badgeStatus.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold';
+                badgeStatus.innerText = 'Ruta trazada';
+            }
+
+            renderSegmentsList(segments);
+        }
+
+        function recalculateTotals() {
+            updateUI();
+        }
+
+        function formatDistance(meters) {
+            if (meters >= 1000) {
+                return (meters / 1000).toFixed(2) + ' km';
+            }
+            return Math.round(meters) + ' m';
+        }
+
+        function renderSegmentsList(segments) {
+            const container = document.getElementById('segments-list');
+
+            if (points.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-500 text-xs italic">
+                        Toca en el mapa para situar la CTO. El sistema detectará automáticamente el nombre de la calle.
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+
+            points.forEach((p, idx) => {
+                const seg = idx > 0 ? segments[idx - 1] : null;
+                const distText = seg ? formatDistance(seg.distance) : 'Inicio';
+
+                let iconBg = 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+                if (p.type === 'pole') iconBg = 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+                if (p.type === 'house') iconBg = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+
+                html += `
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <div class="w-8 h-8 rounded-xl border flex items-center justify-center text-sm ${iconBg} flex-shrink-0">
+                                ${p.emoji}
+                            </div>
+                            <div class="truncate">
+                                <div class="font-bold text-slate-100 truncate text-[11px] flex items-center gap-1.5">
+                                    <span>${p.label}</span>
+                                </div>
+                                <div class="text-[10px] text-cyan-300/90 font-medium truncate">
+                                    <i class="fa-solid fa-location-dot text-[9px]"></i> ${p.streetName}
+                                </div>
+                                <div class="text-[9px] text-slate-500 font-mono">
+                                    ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                            <span class="font-bold text-cyan-400 text-[10px] bg-slate-950 px-2 py-1 rounded-md border border-slate-800">
+                                ${seg ? `+${distText}` : 'CTO'}
+                            </span>
+                            <button onclick="removePointById('${p.id}')" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Eliminar este punto">
+                                <i class="fa-solid fa-xmark text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // --- SEARCH ADDRESS (NOMINATIM) ---
+        let searchTimeout = null;
+
+        function handleSearchKey(e) {
+            if (e.key === 'Enter') {
+                searchAddress();
+            } else {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    const query = document.getElementById('address-input').value.trim();
+                    if (query.length >= 3) {
+                        fetchAddressSuggestions(query);
+                    } else {
+                        document.getElementById('search-results').classList.add('hidden');
+                    }
+                }, 400);
+            }
+        }
+
+        function searchAddress() {
+            const query = document.getElementById('address-input').value.trim();
+            if (!query) return;
+            fetchAddressSuggestions(query, true);
+        }
+
+        function fetchAddressSuggestions(query, autoSelectFirst = false) {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    const resultsContainer = document.getElementById('search-results');
+                    resultsContainer.innerHTML = '';
+
+                    if (!data || data.length === 0) {
+                        resultsContainer.innerHTML = '<div class="p-3 text-slate-400 italic">No se encontraron resultados</div>';
+                        resultsContainer.classList.remove('hidden');
+                        return;
+                    }
+
+                    if (autoSelectFirst) {
+                        selectLocation(data[0].lat, data[0].lon, data[0].display_name);
+                        resultsContainer.classList.add('hidden');
+                        return;
+                    }
+
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'p-2.5 hover:bg-slate-800 active:bg-slate-700 cursor-pointer transition truncate text-slate-200';
+                        div.innerText = item.display_name;
+                        div.onclick = () => selectLocation(item.lat, item.lon, item.display_name);
+                        resultsContainer.appendChild(div);
+                    });
+
+                    resultsContainer.classList.remove('hidden');
+                })
+                .catch(() => {
+                    showToast('Error de red al buscar la dirección', 'error');
+                });
+        }
+
+        function selectLocation(lat, lon, displayName) {
+            const latitude = parseFloat(lat);
+            const longitude = parseFloat(lon);
+
+            map.flyTo([latitude, longitude], 18, { animate: true });
+            document.getElementById('search-results').classList.add('hidden');
+            document.getElementById('address-input').value = displayName.split(',')[0];
+
+            showToast('Mapa centrado en la dirección', 'info');
+        }
+
+        // --- EXPORT PNG & PDF ---
+        function exportPNG() {
+            showToast('Generando captura PNG...', 'info');
+
+            document.querySelector('.leaflet-control-container').style.display = 'none';
+
+            html2canvas(document.getElementById('map-wrapper'), {
+                useCORS: true,
+                allowTaint: true,
+                scale: 2
+            }).then(canvas => {
+                document.querySelector('.leaflet-control-container').style.display = 'block';
+
+                const link = document.createElement('a');
+                link.download = `Croquis_Satelital_FTTH_${Date.now()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+
+                showToast('Captura PNG descargada', 'success');
+            }).catch(() => {
+                document.querySelector('.leaflet-control-container').style.display = 'block';
+                showToast('Error al capturar la imagen', 'error');
+            });
+        }
+
+        function generatePDF() {
+            if (points.length === 0) {
+                showToast('Ubica la CTO en el mapa para generar el PDF', 'error');
+                return;
+            }
+
+            showToast('Generando reporte PDF...', 'info');
+
+            const today = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            document.getElementById('pdf-doc-date').innerText = `FECHA: ${today}`;
+
+            let totalMeters = 0;
+            let polesCount = 0;
+            for (let i = 1; i < points.length; i++) {
+                totalMeters += L.latLng(points[i-1].lat, points[i-1].lng).distanceTo(L.latLng(points[i].lat, points[i].lng));
+            }
+            points.forEach(p => { if (p.type === 'pole') polesCount++; });
+
+            const slackPercent = parseFloat(document.getElementById('form-slack').value) || 0;
+            const cableEstimated = totalMeters * (1 + slackPercent / 100);
+
+            document.getElementById('pdf-val-dist').innerText = formatDistance(totalMeters);
+            document.getElementById('pdf-val-poles').innerText = polesCount;
+            document.getElementById('pdf-val-cable').innerText = `${formatDistance(cableEstimated)} (+${slackPercent}%)`;
+
+            const tbody = document.getElementById('pdf-table-body');
+            tbody.innerHTML = '';
+
+            points.forEach((p, idx) => {
+                let partialDist = '-';
+                if (idx > 0) {
+                    const d = L.latLng(points[idx-1].lat, points[idx-1].lng).distanceTo(L.latLng(p.lat, p.lng));
+                    partialDist = formatDistance(d);
+                }
+
+                const row = document.createElement('tr');
+                row.className = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                row.innerHTML = `
+                    <td class="p-2.5 font-bold text-slate-800">${p.emoji} ${p.label}</td>
+                    <td class="p-2.5 font-bold text-cyan-800">${p.streetName}</td>
+                    <td class="p-2.5 font-mono text-[10px] text-slate-600">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</td>
+                    <td class="p-2.5 text-right font-black text-cyan-700">${partialDist}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.querySelector('.leaflet-control-container').style.display = 'none';
+
+            html2canvas(document.getElementById('map-wrapper'), {
+                useCORS: true,
+                allowTaint: true,
+                scale: 1.5
+            }).then(mapCanvas => {
+                document.querySelector('.leaflet-control-container').style.display = 'block';
+
+                const pdfMapTarget = document.getElementById('pdf-map-capture-target');
+                pdfMapTarget.innerHTML = '';
+                const mapImg = document.createElement('img');
+                mapImg.src = mapCanvas.toDataURL('image/jpeg', 0.9);
+                mapImg.className = 'w-full h-full object-cover rounded-xl';
+                pdfMapTarget.appendChild(mapImg);
+
+                const template = document.getElementById('pdf-template-container');
+
+                html2canvas(template, {
+                    scale: 2,
+                    useCORS: true
+                }).then(pdfCanvas => {
+                    const { jsPDF } = window.jspdf;
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+
+                    const imgData = pdfCanvas.toDataURL('image/jpeg', 0.95);
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = (pdfCanvas.height * pdfWidth) / pdfCanvas.width;
+
+                    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                    pdf.save(`Reporte_Satelital_FTTH_${Date.now()}.pdf`);
+
+                    showToast('PDF generado correctamente', 'success');
+                });
+            }).catch(() => {
+                document.querySelector('.leaflet-control-container').style.display = 'block';
+                showToast('Error al generar el PDF', 'error');
+            });
+        }
+
+        // --- MOBILE UI BOTTOM SHEET TOGGLE ---
+        function toggleBottomSheet() {
+            const sheet = document.getElementById('sidebar-panel');
+            const icon = document.getElementById('sheet-toggle-icon');
+
+            sheet.classList.toggle('collapsed');
+
+            if (sheet.classList.contains('collapsed')) {
+                icon.innerHTML = '<i class="fa-solid fa-chevron-up text-sm"></i>';
+            } else {
+                icon.innerHTML = '<i class="fa-solid fa-chevron-down text-sm"></i>';
+            }
+        }
+
+        function showToast(msg, type = 'info') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const message = document.getElementById('toast-message');
+
+            message.innerText = msg;
+
+            if (type === 'success') {
+                icon.className = 'fa-solid fa-circle-check text-emerald-400 text-base shrink-0';
+            } else if (type === 'error') {
+                icon.className = 'fa-solid fa-circle-exclamation text-rose-400 text-base shrink-0';
+            } else {
+                icon.className = 'fa-solid fa-circle-info text-cyan-400 text-base shrink-0';
+            }
+
+            toast.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+            }, 2600);
+        }
     </script>
 </body>
-
 </html>
