@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Calculador de Postes FTTH - Trazado Satelital</title>
+    <title>Calculador de Postes FTTH y Trazado de Fibra Óptica</title>
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -24,6 +25,7 @@
             }
         }
     </script>
+
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Leaflet CSS & JS -->
@@ -117,11 +119,6 @@
             border-radius: 4px;
         }
 
-        /* Cable line visual glow shadow */
-        .leaflet-interactive {
-            filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.8));
-        }
-
         /* Bottom Sheet Transition for Mobile */
         .bottom-sheet {
             transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -150,7 +147,7 @@
                 <h1 class="font-extrabold text-sm sm:text-base text-white tracking-tight leading-tight flex items-center gap-1.5">
                     Postes FTTH <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold uppercase tracking-wider">Satelital</span>
                 </h1>
-                <p class="text-[10px] text-slate-400 font-medium hidden sm:block">Detección de calles, trazado y recuento de apoyos</p>
+                <p class="text-[10px] text-slate-400 font-medium hidden sm:block">Medición de trazados aéreos, geocodificación de calles e informes</p>
             </div>
         </div>
 
@@ -196,7 +193,7 @@
                 <div class="pointer-events-auto flex items-center justify-between gap-2">
                     <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl px-3 py-1.5 text-xs font-semibold text-slate-300 flex items-center gap-2 shadow-lg">
                         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span class="text-[11px]">Vista Satélite + Vías</span>
+                        <span class="text-[11px]">Satelital HD (Esri)</span>
                     </div>
 
                     <!-- GPS Location Button -->
@@ -217,14 +214,14 @@
         </div>
 
         <!-- MOBILE BOTTOM SHEET / DESKTOP SIDEBAR PANEL -->
-        <aside id="sidebar-panel" class="bottom-sheet collapsed fixed lg:relative bottom-0 left-0 right-0 z-20 w-full lg:w-[390px] bg-slate-900/95 border-t lg:border-t-0 lg:border-l border-slate-800 rounded-t-3xl lg:rounded-none shadow-2xl lg:shadow-none flex flex-col max-h-[85vh] lg:max-h-full">
+        <aside id="sidebar-panel" class="bottom-sheet collapsed fixed lg:relative bottom-0 left-0 right-0 z-20 w-full lg:w-[400px] bg-slate-900/95 border-t lg:border-t-0 lg:border-l border-slate-800 rounded-t-3xl lg:rounded-none shadow-2xl lg:shadow-none flex flex-col max-h-[85vh] lg:max-h-full">
             
             <!-- Mobile Sheet Drag Handle & Toggle Header -->
             <button onclick="toggleBottomSheet()" class="w-full py-2.5 px-4 flex flex-col items-center justify-center shrink-0 lg:hidden border-b border-slate-800/80 active:bg-slate-800/50">
                 <div class="w-12 h-1.5 bg-slate-700 rounded-full mb-1"></div>
                 <div class="w-full flex items-center justify-between text-xs text-slate-400 font-bold">
                     <span class="flex items-center gap-1.5 text-slate-300">
-                        <i class="fa-solid fa-chart-pie text-cyan-400"></i> Métricas e Informe Técnico
+                        <i class="fa-solid fa-chart-pie text-cyan-400"></i> Resumen de Medición y Calles
                     </span>
                     <span id="sheet-toggle-icon" class="text-cyan-400">
                         <i class="fa-solid fa-chevron-up text-sm"></i>
@@ -239,9 +236,9 @@
                 <div class="grid grid-cols-3 gap-2">
                     <!-- Distancia Total -->
                     <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-2xl text-center flex flex-col justify-center">
-                        <div class="text-[9px] font-extrabold tracking-wider text-slate-400 uppercase">Distancia Total</div>
+                        <div class="text-[9px] font-extrabold tracking-wider text-slate-400 uppercase">Distancia Real</div>
                         <div id="stat-distance" class="text-base sm:text-lg font-black text-cyan-400 mt-0.5">0 m</div>
-                        <div class="text-[9px] text-slate-500">CTO ➔ Casa</div>
+                        <div class="text-[9px] text-slate-500">Trazado CTO ➔ Casa</div>
                     </div>
 
                     <!-- Nº Postes -->
@@ -255,7 +252,7 @@
                     <div class="bg-slate-950/80 border border-slate-800 p-2.5 rounded-2xl text-center flex flex-col justify-center">
                         <div class="text-[9px] font-extrabold tracking-wider text-slate-400 uppercase">Cable (+Margen)</div>
                         <div id="stat-cable" class="text-base sm:text-lg font-black text-emerald-400 mt-0.5">0 m</div>
-                        <div class="text-[9px] text-slate-500">Estimado</div>
+                        <div class="text-[9px] text-slate-500">Total estimado</div>
                     </div>
                 </div>
 
@@ -278,23 +275,23 @@
                     <div class="flex items-center justify-between mb-2.5">
                         <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                             <i class="fa-solid fa-map-pin text-cyan-400"></i>
-                            Calles y Puntos Trazados
+                            Calles y Coordenadas GPS
                         </h2>
                         <span id="badge-route-status" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-bold">Sin puntos</span>
                     </div>
 
                     <div id="segments-list" class="space-y-2 max-h-52 lg:max-h-64 overflow-y-auto pr-1">
                         <div class="text-center py-8 text-slate-500 text-xs italic">
-                            Toca en el mapa para situar la CTO. El sistema detectará automáticamente el nombre de la calle.
+                            Toca en el mapa para colocar la CTO. El nombre de la calle se detectará automáticamente.
                         </div>
                     </div>
                 </div>
 
                 <!-- 4. EXPORT ACTION BUTTONS -->
                 <div class="grid grid-cols-2 gap-2.5 pt-1">
-                    <button onclick="exportPNG()" class="min-h-[44px] px-3 py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-2xl font-bold text-xs text-white transition flex items-center justify-center gap-2 shadow-lg">
-                        <i class="fa-solid fa-camera text-slate-300 text-sm"></i>
-                        <span>Captura PNG</span>
+                    <button onclick="exportFullPNG()" class="min-h-[44px] px-3 py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-2xl font-bold text-xs text-white transition flex items-center justify-center gap-2 shadow-lg">
+                        <i class="fa-solid fa-image text-cyan-400 text-sm"></i>
+                        <span>Captura PNG Completa</span>
                     </button>
 
                     <button onclick="generatePDF()" class="min-h-[44px] px-3 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:from-cyan-700 active:to-blue-700 text-white rounded-2xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/25">
@@ -308,66 +305,76 @@
 
     </main>
 
-    <!-- HIDDEN CONTAINER FOR PDF REPORT GENERATION -->
-    <div id="pdf-template-container" class="fixed -left-[9999px] top-0 w-[800px] bg-white text-slate-900 p-8 font-sans">
-        <div class="border-b-2 border-cyan-600 pb-4 mb-6 flex justify-between items-start">
+    <!-- HIDDEN UNIFIED REPORT CARD TEMPLATE FOR PNG AND PDF EXPORT -->
+    <div id="export-template-wrapper" class="fixed -left-[9999px] top-0 w-[850px] bg-slate-900 text-slate-100 p-6 font-sans border border-slate-800 shadow-2xl rounded-xl">
+        <!-- Report Header -->
+        <div class="border-b-2 border-cyan-500 pb-4 mb-5 flex justify-between items-start">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="text-2xl">📡</span>
-                    <h1 class="text-2xl font-black text-slate-900 uppercase tracking-tight">Informe Técnico de Postes FTTH</h1>
+                    <span class="text-3xl">📡</span>
+                    <div>
+                        <h1 class="text-2xl font-black text-white uppercase tracking-tight">REPORTE Y CROQUIS DE INSTALACIÓN FTTH</h1>
+                        <p class="text-xs text-cyan-400 font-semibold mt-0.5">Medición Satelital, Apoyos en Poste y Detección de Direcciones</p>
+                    </div>
                 </div>
-                <p class="text-xs text-slate-500 font-medium mt-1">Cálculo de Apoyos, Ubicación Satelital y Calles Registradas</p>
             </div>
             <div class="text-right">
-                <div class="text-xs text-slate-400 font-mono" id="pdf-doc-date">FECHA: --/--/----</div>
-                <div class="text-xs font-bold text-cyan-700 mt-1">REPORTE DE CAMPO CABLE AÉREO</div>
+                <div class="text-xs font-mono text-slate-400" id="report-date-val">FECHA: --/--/----</div>
+                <div class="text-[11px] font-extrabold text-cyan-300 mt-1 uppercase tracking-wider bg-cyan-950/80 px-2.5 py-1 rounded-md border border-cyan-800">CABLE AÉREO DE FIBRA</div>
             </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-4 mb-6">
-            <div class="bg-cyan-50 border border-cyan-100 p-3.5 rounded-xl text-center">
-                <div class="text-[10px] font-bold uppercase text-cyan-600">Distancia Total Red</div>
-                <div id="pdf-val-dist" class="text-2xl font-black text-cyan-900 mt-0.5">0 m</div>
+        <!-- Metric Summary Cards -->
+        <div class="grid grid-cols-3 gap-3 mb-5">
+            <div class="bg-slate-950 border border-slate-800 p-3 rounded-xl text-center">
+                <div class="text-[10px] font-extrabold uppercase text-slate-400">Distancia Real Red</div>
+                <div id="report-dist-val" class="text-xl font-black text-cyan-400 mt-0.5">0 m</div>
             </div>
-            <div class="bg-amber-50 border border-amber-100 p-3.5 rounded-xl text-center">
-                <div class="text-[10px] font-bold uppercase text-amber-600">Postes Utilizados</div>
-                <div id="pdf-val-poles" class="text-2xl font-black text-amber-900 mt-0.5">0</div>
+            <div class="bg-slate-950 border border-slate-800 p-3 rounded-xl text-center">
+                <div class="text-[10px] font-extrabold uppercase text-slate-400">Postes Utilizados</div>
+                <div id="report-poles-val" class="text-xl font-black text-amber-400 mt-0.5">0</div>
             </div>
-            <div class="bg-emerald-50 border border-emerald-100 p-3.5 rounded-xl text-center">
-                <div class="text-[10px] font-bold uppercase text-emerald-600">Estimación Cable (+Margen)</div>
-                <div id="pdf-val-cable" class="text-2xl font-black text-emerald-900 mt-0.5">0 m</div>
-            </div>
-        </div>
-
-        <div class="mb-6">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-2">
-                <span>🛰️</span> Plano Satelital del Trazado Aéreo
-            </h3>
-            <div id="pdf-map-capture-target" class="w-full h-[330px] rounded-xl border border-slate-300 overflow-hidden bg-slate-900 flex items-center justify-center">
+            <div class="bg-slate-950 border border-slate-800 p-3 rounded-xl text-center">
+                <div class="text-[10px] font-extrabold uppercase text-slate-400">Cable Estimado (+Margen)</div>
+                <div id="report-cable-val" class="text-xl font-black text-emerald-400 mt-0.5">0 m</div>
             </div>
         </div>
 
-        <div class="mb-6">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-2">
-                <span>📍</span> Desglose de Puntos, Nombres de Calles y Coordenadas GPS
-            </h3>
+        <!-- Croquis Map Image Slot -->
+        <div class="mb-5">
+            <div class="text-xs font-extrabold uppercase tracking-wider text-slate-300 mb-2 flex items-center justify-between">
+                <span class="flex items-center gap-1.5"><i class="fa-solid fa-map-marked-alt text-cyan-400"></i> Croquis Satelital del Trazado Aéreo</span>
+                <span class="text-[10px] text-slate-400 font-normal">Escala automática</span>
+            </div>
+            <div id="report-map-slot" class="w-full h-[360px] rounded-xl border border-slate-700 overflow-hidden bg-slate-950 flex items-center justify-center">
+                <!-- Croquis Map Snapshot will be dynamically placed here -->
+            </div>
+        </div>
+
+        <!-- Detailed Street Table -->
+        <div class="mb-4">
+            <div class="text-xs font-extrabold uppercase tracking-wider text-slate-300 mb-2 flex items-center gap-1.5">
+                <i class="fa-solid fa-list-check text-cyan-400"></i> Desglose por Elemento, Calles Detectadas y Coordenadas GPS
+            </div>
             <table class="w-full text-left border-collapse text-xs">
                 <thead>
-                    <tr class="bg-slate-900 text-white text-[11px] uppercase">
+                    <tr class="bg-slate-950 text-cyan-300 text-[10px] uppercase font-bold border-b border-slate-800">
                         <th class="p-2.5 rounded-tl-lg">Elemento</th>
-                        <th class="p-2.5">Calle / Ubicación Detectada</th>
+                        <th class="p-2.5">Calle / Dirección Detectada</th>
                         <th class="p-2.5">Coordenadas GPS</th>
                         <th class="p-2.5 rounded-tr-lg text-right">Tramo Parcial</th>
                     </tr>
                 </thead>
-                <tbody id="pdf-table-body" class="divide-y divide-slate-200 border-b border-slate-200">
+                <tbody id="report-table-body" class="divide-y divide-slate-800/60 bg-slate-950/50">
+                    <!-- Rows will be injected dynamically -->
                 </tbody>
             </table>
         </div>
 
-        <div class="border-t border-slate-200 pt-4 flex justify-between items-center text-[10px] text-slate-400">
-            <div>Generado con Calculador de Postes FTTH (Modo Satelital)</div>
-            <div>Página 1 de 1</div>
+        <!-- Footer -->
+        <div class="border-t border-slate-800 pt-3 flex justify-between items-center text-[10px] text-slate-500 font-medium">
+            <div>Generado con Calculador de Postes FTTH (Croquis Satelital)</div>
+            <div>Documento Técnico de Medición de Campo</div>
         </div>
     </div>
 
@@ -403,13 +410,13 @@
             // Zoom controls top right
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            // 1. ESRI WORLD IMAGERY (Pure Satellite Imagery - No API key required)
+            // 1. ESRI WORLD IMAGERY (Satellite Base Layer - CORS Enabled)
             const satelliteImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 19,
                 crossOrigin: true
             }).addTo(map);
 
-            // 2. ESRI WORLD BOUNDARIES AND PLACES (Overlay of streets and labels over satellite)
+            // 2. ESRI WORLD BOUNDARIES AND PLACES (Overlay Labels Layer)
             const streetLabels = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 19,
                 crossOrigin: true
@@ -488,7 +495,7 @@
             points.push(newPoint);
             fetchReverseGeocode(newPoint);
             refreshMapAndData();
-            showToast('Punto marcado en mapa', 'info');
+            showToast('Punto marcado en el mapa', 'info');
         }
 
         // --- REVERSE GEOCODING (NOMINATIM STREET DETECTION) ---
@@ -597,11 +604,10 @@
                         draggable: true
                     }).addTo(map);
 
-                    // Add tooltip with street name
                     p.marker.bindTooltip(() => `<b>${p.label}</b><br>${p.streetName}`, {
                         direction: 'top',
                         offset: [0, -32],
-                        opacity: 0.9
+                        opacity: 0.95
                     });
 
                     p.marker.on('dragend', function(e) {
@@ -620,7 +626,7 @@
                 }
             });
 
-            // Update Line
+            // Update Polyline
             const latLngs = points.map(p => [p.lat, p.lng]);
             polyline.setLatLngs(latLngs);
 
@@ -710,7 +716,7 @@
             if (points.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-8 text-slate-500 text-xs italic">
-                        Toca en el mapa para situar la CTO. El sistema detectará automáticamente el nombre de la calle.
+                        Toca en el mapa para colocar la CTO. El nombre de la calle se detectará automáticamente.
                     </div>
                 `;
                 return;
@@ -831,42 +837,20 @@
             showToast('Mapa centrado en la dirección', 'info');
         }
 
-        // --- EXPORT PNG & PDF ---
-        function exportPNG() {
-            showToast('Generando captura PNG...', 'info');
-
-            document.querySelector('.leaflet-control-container').style.display = 'none';
-
-            html2canvas(document.getElementById('map-wrapper'), {
-                useCORS: true,
-                allowTaint: true,
-                scale: 2
-            }).then(canvas => {
-                document.querySelector('.leaflet-control-container').style.display = 'block';
-
-                const link = document.createElement('a');
-                link.download = `Croquis_Satelital_FTTH_${Date.now()}.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-
-                showToast('Captura PNG descargada', 'success');
-            }).catch(() => {
-                document.querySelector('.leaflet-control-container').style.display = 'block';
-                showToast('Error al capturar la imagen', 'error');
-            });
-        }
-
-        function generatePDF() {
+        // --- PREPARE UNIFIED EXPORT TEMPLATE DATA ---
+        function prepareExportTemplate(callback) {
             if (points.length === 0) {
-                showToast('Ubica la CTO en el mapa para generar el PDF', 'error');
+                showToast('Marca al menos un punto en el mapa para exportar', 'error');
                 return;
             }
 
-            showToast('Generando reporte PDF...', 'info');
+            showToast('Procesando mapa y direcciones...', 'info');
 
+            // 1. Set Date
             const today = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            document.getElementById('pdf-doc-date').innerText = `FECHA: ${today}`;
+            document.getElementById('report-date-val').innerText = `FECHA: ${today}`;
 
+            // 2. Set Metrics
             let totalMeters = 0;
             let polesCount = 0;
             for (let i = 1; i < points.length; i++) {
@@ -877,11 +861,12 @@
             const slackPercent = parseFloat(document.getElementById('form-slack').value) || 0;
             const cableEstimated = totalMeters * (1 + slackPercent / 100);
 
-            document.getElementById('pdf-val-dist').innerText = formatDistance(totalMeters);
-            document.getElementById('pdf-val-poles').innerText = polesCount;
-            document.getElementById('pdf-val-cable').innerText = `${formatDistance(cableEstimated)} (+${slackPercent}%)`;
+            document.getElementById('report-dist-val').innerText = formatDistance(totalMeters);
+            document.getElementById('report-poles-val').innerText = polesCount;
+            document.getElementById('report-cable-val').innerText = `${formatDistance(cableEstimated)} (+${slackPercent}%)`;
 
-            const tbody = document.getElementById('pdf-table-body');
+            // 3. Populate Table Rows
+            const tbody = document.getElementById('report-table-body');
             tbody.innerHTML = '';
 
             points.forEach((p, idx) => {
@@ -892,53 +877,89 @@
                 }
 
                 const row = document.createElement('tr');
-                row.className = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                row.className = 'border-b border-slate-800/60';
                 row.innerHTML = `
-                    <td class="p-2.5 font-bold text-slate-800">${p.emoji} ${p.label}</td>
-                    <td class="p-2.5 font-bold text-cyan-800">${p.streetName}</td>
-                    <td class="p-2.5 font-mono text-[10px] text-slate-600">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</td>
-                    <td class="p-2.5 text-right font-black text-cyan-700">${partialDist}</td>
+                    <td class="p-2.5 font-bold text-white flex items-center gap-1.5">
+                        <span>${p.emoji}</span> <span>${p.label}</span>
+                    </td>
+                    <td class="p-2.5 font-semibold text-cyan-300">${p.streetName}</td>
+                    <td class="p-2.5 font-mono text-[10px] text-slate-400">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</td>
+                    <td class="p-2.5 text-right font-black text-cyan-400">${partialDist}</td>
                 `;
                 tbody.appendChild(row);
             });
 
+            // 4. Temporarily hide Leaflet controls to capture clean satellite map image
             document.querySelector('.leaflet-control-container').style.display = 'none';
 
             html2canvas(document.getElementById('map-wrapper'), {
                 useCORS: true,
                 allowTaint: true,
-                scale: 1.5
+                scale: 1.8
             }).then(mapCanvas => {
                 document.querySelector('.leaflet-control-container').style.display = 'block';
 
-                const pdfMapTarget = document.getElementById('pdf-map-capture-target');
-                pdfMapTarget.innerHTML = '';
+                const mapSlot = document.getElementById('report-map-slot');
+                mapSlot.innerHTML = '';
                 const mapImg = document.createElement('img');
                 mapImg.src = mapCanvas.toDataURL('image/jpeg', 0.9);
                 mapImg.className = 'w-full h-full object-cover rounded-xl';
-                pdfMapTarget.appendChild(mapImg);
+                mapSlot.appendChild(mapImg);
 
-                const template = document.getElementById('pdf-template-container');
+                // Call the completion callback
+                callback();
+            }).catch(() => {
+                document.querySelector('.leaflet-control-container').style.display = 'block';
+                showToast('Error al capturar el plano satelital', 'error');
+            });
+        }
+
+        // --- EXPORT FULL PNG SHEET ---
+        function exportFullPNG() {
+            prepareExportTemplate(() => {
+                const template = document.getElementById('export-template-wrapper');
 
                 html2canvas(template, {
                     scale: 2,
-                    useCORS: true
-                }).then(pdfCanvas => {
+                    useCORS: true,
+                    allowTaint: true
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `Reporte_Croquis_FTTH_${Date.now()}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+
+                    showToast('Captura PNG Completa descargada', 'success');
+                }).catch(() => {
+                    showToast('Error al generar la imagen PNG', 'error');
+                });
+            });
+        }
+
+        // --- EXPORT PDF REPORT ---
+        function generatePDF() {
+            prepareExportTemplate(() => {
+                const template = document.getElementById('export-template-wrapper');
+
+                html2canvas(template, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true
+                }).then(canvas => {
                     const { jsPDF } = window.jspdf;
                     const pdf = new jsPDF('p', 'mm', 'a4');
 
-                    const imgData = pdfCanvas.toDataURL('image/jpeg', 0.95);
+                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
                     const pdfWidth = pdf.internal.pageSize.getWidth();
-                    const pdfHeight = (pdfCanvas.height * pdfWidth) / pdfCanvas.width;
+                    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
                     pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-                    pdf.save(`Reporte_Satelital_FTTH_${Date.now()}.pdf`);
+                    pdf.save(`Reporte_Tecnico_FTTH_${Date.now()}.pdf`);
 
-                    showToast('PDF generado correctamente', 'success');
+                    showToast('Reporte PDF descargado correctamente', 'success');
+                }).catch(() => {
+                    showToast('Error al generar el documento PDF', 'error');
                 });
-            }).catch(() => {
-                document.querySelector('.leaflet-control-container').style.display = 'block';
-                showToast('Error al generar el PDF', 'error');
             });
         }
 
